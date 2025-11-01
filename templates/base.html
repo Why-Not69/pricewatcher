@@ -1,0 +1,52 @@
+<!-- templates/base.html -->
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>PriceWatcher — простой трекер цен</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="container">
+      <a href="{{ url_for('index') }}" class="logo">PriceWatcher</a>
+      <nav>
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('index') }}">Мои продукты</a>
+          <a href="{{ url_for('add_product') }}">Добавить продукт</a>
+          {% if current_user.is_admin %}
+            <a href="{{ url_for('admin.plans') }}">Админ: тарифы</a>
+          {% endif %}
+          <a href="{{ url_for('auth.logout') }}">Выйти</a>
+        {% else %}
+          <a href="{{ url_for('auth.login') }}">Войти</a>
+          <a href="{{ url_for('auth.register') }}">Регистрация</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashbox">
+        {% for category, msg in messages %}
+          <div class="flash {{ category }}">{{ msg }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <small>Минималистичный MVP. Частота обновления: каждые {{ config.PRICE_UPDATE_INTERVAL }} сек.</small>
+    </div>
+  </footer>
+
+  <!-- Подключаем минимальный скрипт (чистый JS, без фреймворков) -->
+  <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!-- templates/product_detail.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ product.name }}</h2>
+<p>Добавлен: {{ product.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
+
+<!-- Навигация: открыть/редактировать/удалить -->
+<p>
+  <a href="{{ url_for('edit_product', product_id=product.id) }}">Редактировать</a>
+  &nbsp;|&nbsp;
+  <form action="{{ url_for('delete_product', product_id=product.id) }}" method="post" style="display:inline" onsubmit="return confirm('Удалить продукт? Это действие необратимо.');">
+    <button type="submit" style="background:#b00020; padding:6px 8px; border-radius:6px; color:#fff; border:none; cursor:pointer;">Удалить</button>
+  </form>
+</p>
+
+<!-- У формы есть id — наш JS поймает submit и выполнит fetch -->
+<form action="{{ url_for('product_update_now', product_id=product.id) }}" method="post" id="update-now-form">
+  <button type="submit" id="update-now-btn">Обновить цены сейчас</button>
+  <span id="update-status" style="margin-left:10px; color:#333;"></span>
+</form>
+
+<h3>Ссылки</h3>
+<table>
+  <thead><tr><th>URL</th><th>Последняя цена</th><th>Проверено</th></tr></thead>
+  <tbody>
+  {% for ln in product.links %}
+    <tr>
+      <td><a href="{{ ln.url }}" target="_blank">{{ ln.url|truncate(60) }}</a></td>
+      <td>{{ ln.last_price if ln.last_price else "—" }}</td>
+      <td>{{ ln.last_checked.strftime("%Y-%m-%d %H:%M") if ln.last_checked else "—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h3>История цен (по ссылкам)</h3>
+{% for ln in product.links %}
+  <h4>Ссылка: {{ ln.url|truncate(60) }}</h4>
+  {% set histories = ln.histories | sort(attribute='checked_at', reverse=True) %}
+  {% if histories %}
+    <ul>
+      {% for h in histories %}
+        {% if loop.index <= 10 %}
+          <li>{{ h.checked_at.strftime("%Y-%m-%d %H:%M") }} — {{ "%.2f"|format(h.price) }}</li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>История пуста</p>
+  {% endif %}
+{% endfor %}
+{% endblock %}

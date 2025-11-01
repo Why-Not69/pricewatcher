@@ -1,0 +1,33 @@
+<!-- templates/add_product.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Добавить продукт</h2>
+
+<!-- Здесь мы положим data-max, чтобы JS понял, сколько полей показывать -->
+<div id="add-product-root" data-max-links="{{ max_links }}"></div>
+
+<form method="post" id="add-product-form">
+  <label>Название (необязательно)</label><br>
+  <input name="name" type="text" placeholder="Например: Giant Propel ADV 2"><br><br>
+
+  <p>Добавьте ссылки на этот товар (до {{ max_links }}):</p>
+
+  <!-- Создаем 5 полей (максимум в системе) — JS покажет только нужное число -->
+  {% for i in range(1,6) %}
+    <input name="url{{i}}" type="url" class="product-url-input" placeholder="https://example.com/product..." data-index="{{ i }}"><br>
+  {% endfor %}
+
+  <div>
+    <!-- Кнопка, которую JS покажет/скроет при необходимости -->
+    <button type="button" id="add-link-btn">Добавить ещё ссылку</button>
+  </div>
+
+  <br>
+  <button type="submit">Добавить</button>
+</form>
+
+<!-- Небольшая подсказка для пользователя -->
+<p style="color:#666; font-size:14px; margin-top:8px;">
+  Совет: вставляйте ссылки на те же товары из разных магазинов. Бесплатно — 1 продукт и до {{ max_links }} ссылок.
+</p>
+{% endblock %}

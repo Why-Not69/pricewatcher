@@ -1,0 +1,27 @@
+<!-- templates/edit_product.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Редактировать продукт</h2>
+
+<div id="add-product-root" data-max-links="{{ max_links }}"></div>
+
+<form method="post" id="edit-product-form">
+  <label>Название</label><br>
+  <input name="name" type="text" value="{{ product.name }}" placeholder="Название продукта"><br><br>
+
+  <p>Ссылки на товар (до {{ max_links }}):</p>
+
+  {% for i in range(1,6) %}
+    {% set value = product.links[i-1].url if product.links|length >= i else "" %}
+    <input name="url{{i}}" type="url" class="product-url-input" placeholder="https://example.com/product..." data-index="{{ i }}" value="{{ value }}"><br>
+  {% endfor %}
+
+  <div>
+    <button type="button" id="add-link-btn">Добавить ещё ссылку</button>
+  </div>
+
+  <br>
+  <button type="submit">Сохранить</button>
+  <a href="{{ url_for('product_detail', product_id=product.id) }}" style="margin-left:12px;">Отмена</a>
+</form>
+{% endblock %}

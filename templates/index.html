@@ -1,0 +1,36 @@
+<!-- templates/index.html -->
+{% extends "base.html" %}
+{% block content %}
+<h1>Мои отслеживаемые продукты</h1>
+
+{% if products %}
+  <div class="grid">
+    {% for p in products %}
+      <div class="card">
+        <h3>{{ p.name }}</h3>
+        <p>Добавлен: {{ p.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
+        <p>Ссылок: {{ p.links|length }}</p>
+        <p>Минимальная цена:
+          {% if p.min_price() %}
+              {{ "%.2f"|format(p.min_price()) }}
+          {% else %}
+              нет данных
+          {% endif %}
+        </p>
+        <p>
+          <a href="{{ url_for('product_detail', product_id=p.id) }}">Открыть</a>
+          &nbsp;|&nbsp;
+          <a href="{{ url_for('edit_product', product_id=p.id) }}">Редактировать</a>
+          &nbsp;|&nbsp;
+          <!-- Удаление: метод POST + подтверждение -->
+          <form action="{{ url_for('delete_product', product_id=p.id) }}" method="post" style="display:inline" onsubmit="return confirm('Удалить продукт? Это действие необратимо.');">
+            <button type="submit" style="background:#b00020; padding:6px 8px; border-radius:6px; color:#fff; border:none; cursor:pointer;">Удалить</button>
+          </form>
+        </p>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>У вас пока нет отслеживаемых продуктов. <a href="{{ url_for('add_product') }}">Добавьте первый</a>.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,35 @@
+<!-- templates/admin_plans.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Тарифы (админ)</h2>
+
+<h3>Создать / Редактировать тариф</h3>
+<form method="post">
+  <input name="plan_id" type="hidden" value="">
+  <label>Название</label><br>
+  <input name="name" required><br>
+  <label>Цена (в центах, 0 = бесплатно)</label><br>
+  <input name="price_cents" type="number" value="0"><br>
+  <label>Макс. продуктов</label><br>
+  <input name="max_products" type="number" value="1"><br>
+  <label>Макс. ссылок на продукт</label><br>
+  <input name="max_links_per_product" type="number" value="5"><br><br>
+  <button type="submit">Сохранить тариф</button>
+</form>
+
+<h3>Существующие тарифы</h3>
+<table>
+  <thead><tr><th>ID</th><th>Название</th><th>Цена центов</th><th>Продуктов</th><th>Ссылок</th></tr></thead>
+  <tbody>
+  {% for p in plans %}
+    <tr>
+      <td>{{ p.id }}</td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.price_cents }}</td>
+      <td>{{ p.max_products }}</td>
+      <td>{{ p.max_links_per_product }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

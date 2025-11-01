@@ -1,0 +1,21 @@
+/* static/style.css */
+/* Очень простой минималистичный стиль, вдохновлённый parse.bot — чисто, без лишних деталей. */
+body { font-family: Arial, Helvetica, sans-serif; margin:0; color:#222; background:#f7f8fb; }
+.container { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+.topbar { background:#fff; border-bottom:1px solid #e6e9ef; }
+.topbar .container { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; }
+.logo { font-weight:700; text-decoration:none; color:#111; }
+nav a { margin-left:12px; text-decoration:none; color:#333; font-size:14px; }
+.card { background:#fff; border:1px solid #e6e9ef; padding:14px; border-radius:8px; margin-bottom:12px; }
+.grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap:12px; }
+footer { padding:12px 0; text-align:center; color:#666; font-size:13px; margin-top:30px; }
+.flashbox .flash { padding:8px 12px; border-radius:6px; margin-bottom:8px; }
+.flash.success { background:#e6ffed; color:#055; border:1px solid #b8f0c7; }
+.flash.warning { background:#fff7e6; color:#665200; border:1px solid #ffe8a8; }
+.flash.danger { background:#ffecec; color:#7a0b0b; border:1px solid #f5c6c6; }
+button { background:#111; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
+input[type="text"], input[type="email"], input[type="url"], input[type="password"], input[type="number"] {
+  width:100%; padding:8px; margin-bottom:8px; border:1px solid #dcdfe6; border-radius:6px;
+}
+table { width:100%; border-collapse: collapse; margin-top:12px; }
+table th, table td { padding:8px 6px; border-bottom:1px solid #eee; text-align:left; }
