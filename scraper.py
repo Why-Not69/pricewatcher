@@ -7,13 +7,14 @@ HEADERS = {
     "User-Agent": "pricewatcher-bot/1.0 (+https://example.com)"
 }
 
+# Регулярка для поиска чисел с пробелами и запятыми
 PRICE_RE = re.compile(r"(\d{1,3}(?:[ \u00A0]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2}))")
 
 def parse_price_text(text):
     """
     Преобразует строку цены в float.
-    - убираем пробелы (в том числе NBSP)
-    - корректно определяем десятичный разделитель
+    - Убираем пробелы (в том числе NBSP)
+    - Определяем, какой символ десятичный
     """
     if not text:
         return None
@@ -25,15 +26,17 @@ def parse_price_text(text):
 
     s = m.group(1)
 
+    # Определяем десятичный разделитель
     if ',' in s and '.' in s:
         if s.rfind(',') > s.rfind('.'):
-            s = s.replace('.', '')
-            s = s.replace(',', '.')
+            s = s.replace('.', '')   # точки — тысячные
+            s = s.replace(',', '.')  # запятая — десятичная
         else:
-            s = s.replace(',', '')
+            s = s.replace(',', '')   # запятая — тысячные
     elif ',' in s and '.' not in s:
-        s = s.replace(',', '.')
+        s = s.replace(',', '.')      # запятая — десятичная
 
+    # Убираем пробелы тысячные
     s = s.replace(' ', '')
 
     try:
@@ -42,29 +45,8 @@ def parse_price_text(text):
         return None
 
 def extract_price_from_html(soup):
-    """
-    Ищем цену через:
-    1) data-price атрибут (для Prestashop)
-    2) meta property="product:price:amount"
-    3) itemprop="price"
-    4) meta name="price"
-    5) span/div с классом/id содержащим 'price'
-    6) fallback — текст страницы
-    """
-    # 1) data-price в элементах с классом, содержащим 'price'
-    candidates = soup.find_all(lambda tag: (
-        tag.name in ["span", "div"] and
-        (tag.get("class") and any("price" in c.lower() for c in " ".join(tag.get("class")).split()))
-    ))
-    for c in candidates:
-        data_price = c.get("data-price")
-        if data_price:
-            p = parse_price_text(data_price)
-            if p is not None:
-                print(f"[extract_price] data-price attribute: {p}")
-                return p
-
-    # 2) meta property="product:price:amount"
+    """Ищем цену через meta, itemprop, класс/id или текст страницы"""
+    # meta property
     meta = soup.find("meta", {"property": "product:price:amount"})
     if meta and meta.get("content"):
         p = parse_price_text(meta["content"])
@@ -72,7 +54,7 @@ def extract_price_from_html(soup):
             print(f"[extract_price] meta property: {p}")
             return p
 
-    # 3) itemprop="price"
+    # itemprop
     meta = soup.find(attrs={"itemprop": "price"})
     if meta:
         content = meta.get("content") or meta.get_text()
@@ -81,7 +63,7 @@ def extract_price_from_html(soup):
             print(f"[extract_price] itemprop: {p}")
             return p
 
-    # 4) meta name="price"
+    # meta name=price
     meta = soup.find("meta", {"name": "price"})
     if meta and meta.get("content"):
         p = parse_price_text(meta["content"])
@@ -89,26 +71,33 @@ def extract_price_from_html(soup):
             print(f"[extract_price] meta name: {p}")
             return p
 
-    # 5) span/div с классом/id содержащим 'price'
+    # span/div с классом/id содержащим 'price'
+    candidates = soup.find_all(lambda tag: (
+        tag.name in ["span", "div"] and
+        (
+            (tag.get("class") and any("price" in c.lower() for c in " ".join(tag.get("class")).split())) or
+            (tag.get("id") and "price" in tag.get("id").lower())
+        )
+    ))
     for c in candidates:
         text = c.get_text(" ", strip=True)
         p = parse_price_text(text)
         if p is not None:
-            print(f"[extract_price] class/id text: {p}")
+            print(f"[extract_price] class/id: {p}")
             return p
 
-    # 6) fallback — текст страницы
+    # fallback — текст страницы
     body_text = soup.get_text(separator=' ', strip=True)
     p = parse_price_text(body_text)
     if p is not None:
-        print(f"[extract_price] fallback text: {p}")
+        print(f"[extract_price] fallback: {p}")
         return p
 
     print("[extract_price] price not found")
     return None
 
 def fetch_price(url, timeout=15):
-    """Запрашиваем страницу и возвращаем цену"""
+    """Получаем страницу и возвращаем цену"""
     try:
         resp = requests.get(url, headers=HEADERS, timeout=timeout)
     except Exception as e:
