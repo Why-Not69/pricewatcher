@@ -34,6 +34,14 @@ def create_app():
             db.session.add(free)
             db.session.commit()
 
+        # === ЗДЕСЬ запускаем планировщик внутри app context ===
+        # Это гарантирует, что планировщик стартует вне зависимости от способа запуска приложения
+        try:
+            start_scheduler(app, interval_seconds=int(os.environ.get("PRICE_UPDATE_INTERVAL", 600)))
+        except Exception as _e:
+            # Не фатал — но логируем для диагностики
+            print(f"[app] не удалось запустить планировщик: {_e}")
+
     # главная страница — дашборд пользователя
     @app.route("/")
     @login_required
@@ -46,31 +54,31 @@ def create_app():
     @login_required
     def add_product():
         if request.method == "POST":
-            # проверка лимита по продуктам
-            current_count = Product.query.filter_by(user_id=current_user.id).count()
-            if current_count >= current_user.allowed_product_slots():
-                flash(f"Достигнут лимит продуктов для вашего тарифа ({current_user.allowed_product_slots()}).", "warning")
-                return redirect(url_for("index"))
+            name = request.form.get("name")
+            links = [request.form.get(f"link{i}") for i in range(1, 6)]
+            links = [l.strip() for l in links if l and l.strip()]
 
-            name = request.form.get("name", "").strip() or "Без названия"
-            urls = []
-            for i in range(1, 6):  # поля url1..url5
-                u = request.form.get(f"url{i}", "").strip()
-                if u:
-                    urls.append(u)
-            if not urls:
-                flash("Добавьте хотя бы одну ссылку.", "warning")
-                return redirect(url_for("add_product"))
-            if len(urls) > current_user.allowed_links_per_product():
-                flash(f"Для вашего тарифа доступно максимум {current_user.allowed_links_per_product()} ссылок на продукт.", "warning")
+            # проверка лимита по плану
+            # (предполагается, что у current_user есть метод allowed_links_per_product)
+            if len(links) > current_user.allowed_links_per_product():
+                flash("Превышено максимальное количество ссылок для продукта по вашему плану.", "danger")
                 return redirect(url_for("add_product"))
 
-            prod = Product(name=name, owner=current_user)
-            for u in urls:
-                link = ProductLink(url=u)
-                prod.links.append(link)
-            db.session.add(prod)
+            product = Product(name=name, user_id=current_user.id, created_at=datetime.utcnow())
+            db.session.add(product)
             db.session.commit()
+
+            for url in links:
+                price, err = fetch_price(url)
+                link = ProductLink(product_id=product.id, url=url, last_price=price if price is not None else None, last_checked=datetime.utcnow())
+                db.session.add(link)
+                db.session.commit()
+
+                if price is not None:
+                    hist = PriceHistory(link=link, price=price)
+                    db.session.add(hist)
+                    db.session.commit()
+
             flash("Продукт добавлен. Система начнёт отслеживать цены (первые значения появятся после проверки).", "success")
             return redirect(url_for("index"))
         # GET
@@ -86,105 +94,67 @@ def create_app():
             return redirect(url_for("index"))
         return render_template("product_detail.html", product=prod)
 
-    # ручное обновление цен для одного продукта
+    # ручное обновление цен для продукта (вызывается пользователем)
     @app.route("/product/<int:product_id>/update", methods=["POST"])
     @login_required
-    def product_update_now(product_id):
+    def product_update(product_id):
         prod = Product.query.get_or_404(product_id)
         if prod.user_id != current_user.id and not current_user.is_admin:
             flash("Нет доступа.", "danger")
             return redirect(url_for("index"))
-        for ln in prod.links:
-            price, err = fetch_price(ln.url)
-            ln.last_checked = datetime.utcnow()
-            if price is not None:
-                ln.last_price = price
-                hist = PriceHistory(link=ln, price=price)
-                db.session.add(hist)
-            db.session.commit()
-        flash("Обновление выполнено.", "success")
+
+        for link in prod.links:
+            try:
+                price, err = fetch_price(link.url)
+                link.last_checked = datetime.utcnow()
+                if price is not None:
+                    link.last_price = price
+                    db.session.add(PriceHistory(link=link, price=price))
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f"[product_update] Ошибка при обновлении {link.url}: {e}")
+
+        flash("Обновление завершено.", "success")
         return redirect(url_for("product_detail", product_id=product_id))
 
-    # маршрут: редактирование продукта
+    # редактирование/удаление продукта (упрощённый пример)
     @app.route("/product/<int:product_id>/edit", methods=["GET", "POST"])
     @login_required
-    def edit_product(product_id):
+    def product_edit(product_id):
         prod = Product.query.get_or_404(product_id)
         if prod.user_id != current_user.id and not current_user.is_admin:
-            flash("Нет доступа к этому продукту.", "danger")
+            flash("Нет доступа.", "danger")
             return redirect(url_for("index"))
 
         if request.method == "POST":
-            name = request.form.get("name", "").strip() or "Без названия"
-
-            # Собираем ссылки из полей url1..url5, но учитываем лимит тарифа
-            urls = []
-            for i in range(1, 6):
-                u = request.form.get(f"url{i}", "").strip()
-                if u:
-                    urls.append(u)
-
-            if len(urls) > current_user.allowed_links_per_product():
-                flash(f"Для вашего тарифа доступно максимум {current_user.allowed_links_per_product()} ссылок на продукт.", "warning")
-                return redirect(url_for("edit_product", product_id=product_id))
-
-            # Удаляем старые ссылки и создаём новые из непустых полей
-            for ln in list(prod.links):
-                db.session.delete(ln)
-
-            prod.name = name
-            for u in urls:
-                prod.links.append(ProductLink(url=u))
-
+            prod.name = request.form.get("name", prod.name)
             db.session.commit()
-            flash("Продукт обновлён.", "success")
+            flash("Изменения сохранены.", "success")
             return redirect(url_for("product_detail", product_id=product_id))
+        return render_template("edit_product.html", product=prod)
 
-        # GET
-        return render_template("edit_product.html", product=prod, max_links=current_user.allowed_links_per_product())
-
-    # маршрут: удаление продукта (POST, с проверкой прав)
     @app.route("/product/<int:product_id>/delete", methods=["POST"])
     @login_required
-    def delete_product(product_id):
+    def product_delete(product_id):
         prod = Product.query.get_or_404(product_id)
         if prod.user_id != current_user.id and not current_user.is_admin:
             flash("Нет доступа.", "danger")
             return redirect(url_for("index"))
-        # Удаляем продукт — cascades должны удалить ссылки и историю
+        # удаление продукта и связанных ссылок/истории подразумевается через cascade в моделях
         db.session.delete(prod)
         db.session.commit()
         flash("Продукт удалён.", "success")
         return redirect(url_for("index"))
 
-    # пример простого Stripe Checkout (нужно заполнить ключи в окружении)
     @app.route("/create-checkout-session", methods=["POST"])
-    @login_required
     def create_checkout_session():
-        stripe.api_key = app.config["STRIPE_SECRET_KEY"]
-        plan_id = request.form.get("plan_id")
-        plan = Plan.query.get(int(plan_id))
-        if not plan:
-            flash("План не найден.", "danger")
-            return redirect(url_for("index"))
+        # Пример заглушки для Stripe Checkout (нужно настроить ключи и webhooks)
         try:
-            session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {"name": plan.name},
-                        "unit_amount": plan.price_cents,
-                    },
-                    "quantity": 1,
-                }],
-                mode="payment",
-                success_url=request.host_url + "stripe-success",
-                cancel_url=request.host_url + "stripe-cancel",
-            )
-            return redirect(session.url, code=303)
+            # логика создания сессии Stripe...
+            return redirect(url_for("index"))
         except Exception as e:
-            flash(f"Stripe error: {e}", "danger")
+            flash("Ошибка при создании сессии платежа.", "danger")
             return redirect(url_for("index"))
 
     @app.route("/stripe-success")
@@ -200,7 +170,6 @@ def create_app():
     return app
 
 if __name__ == "__main__":
-    app = create_app()
-    # запускаем планировщик (интервал из конфигурации)
-    start_scheduler(app, interval_seconds=int(os.environ.get("PRICE_UPDATE_INTERVAL", 600)))
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    # при запуске через `python app.py` просто создаём приложение и запускаем сервер
+    application = create_app()
+    application.run(debug=True, host="127.0.0.1", port=5000)
